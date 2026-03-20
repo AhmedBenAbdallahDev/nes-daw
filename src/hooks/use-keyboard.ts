@@ -1,102 +1,205 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { scheduler } from '@/audio/scheduler';
+import { transportController } from '@/audio/transport-controller';
+import { NOTE_OPERATION_DEFAULTS } from '@/lib/constants';
+import { isEditableTarget, resolveShortcutCommand } from '@/lib/shortcuts';
 import { useDAWStore } from '@/store/daw-store';
 import { useNESEngine } from './use-nes-engine';
-import { useScheduler } from './use-scheduler';
 
 const LOWER_ROW: Record<string, number> = {
-  z: 48, s: 49, x: 50, d: 51, c: 52, v: 53,
-  g: 54, b: 55, h: 56, n: 57, j: 58, m: 59,
+  KeyZ: 48,
+  KeyS: 49,
+  KeyX: 50,
+  KeyD: 51,
+  KeyC: 52,
+  KeyV: 53,
+  KeyG: 54,
+  KeyB: 55,
+  KeyH: 56,
+  KeyN: 57,
+  KeyJ: 58,
+  KeyM: 59,
 };
 
 const UPPER_ROW: Record<string, number> = {
-  q: 60, '2': 61, w: 62, '3': 63, e: 64, r: 65,
-  '5': 66, t: 67, '6': 68, y: 69, '7': 70, u: 71,
-  i: 72, '9': 73, o: 74, '0': 75, p: 76,
+  KeyQ: 60,
+  Digit2: 61,
+  KeyW: 62,
+  Digit3: 63,
+  KeyE: 64,
+  KeyR: 65,
+  Digit5: 66,
+  KeyT: 67,
+  Digit6: 68,
+  KeyY: 69,
+  Digit7: 70,
+  KeyU: 71,
+  KeyI: 72,
+  Digit9: 73,
+  KeyO: 74,
+  Digit0: 75,
+  KeyP: 76,
 };
 
 const KEY_MAP: Record<string, number> = { ...LOWER_ROW, ...UPPER_ROW };
+const QUANTIZE_SEQUENCE = ['1/4', '1/8', '1/16', '1/32'] as const;
 
 export function useKeyboard() {
-  const { playNote, stopNote, isReady } = useNESEngine();
+  const { playTrackNote, stopNote, isReady, stopChannel } = useNESEngine();
   const voiceMapRef = useRef<Map<string, number>>(new Map());
   const recordStartTickRef = useRef<Map<string, { midiNote: number; tick: number }>>(new Map());
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!isReady) return;
-      if (e.repeat) return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+  const executeShortcutCommand = useCallback((command: string) => {
+    const state = useDAWStore.getState();
 
-      if (e.code === 'Space') {
-        e.preventDefault();
-        const state = useDAWStore.getState();
-        const scheduler = useScheduler();
-        if (state.transportState === 'playing' || state.transportState === 'recording') {
-          scheduler.stop();
-        } else {
-          scheduler.play();
-        }
-        return;
+    switch (command) {
+      case 'transport.playPause':
+        transportController.togglePlayPause();
+        break;
+      case 'transport.stop':
+        transportController.stop();
+        break;
+      case 'transport.record':
+        transportController.record();
+        break;
+      case 'transport.loop':
+        state.toggleLoop();
+        break;
+      case 'editor.quantize.cycle': {
+        const currentIndex = QUANTIZE_SEQUENCE.indexOf(state.pianoRollView.quantize);
+        const next = QUANTIZE_SEQUENCE[(currentIndex + 1) % QUANTIZE_SEQUENCE.length];
+        state.setQuantize(next);
+        break;
       }
+      case 'editor.note.delete': {
+        const ids = state.pianoRollView.selectedNoteIds;
+        ids.forEach((id) => state.removeNote(state.selectedTrackId, id));
+        state.clearSelection();
+        break;
+      }
+      case 'editor.note.duplicate':
+        state.duplicateSelectedNotes();
+        break;
+      case 'editor.note.quantize':
+        state.quantizeSelectedNotes();
+        break;
+      case 'editor.note.nudgeLeft':
+        state.nudgeSelectedNotes(-NOTE_OPERATION_DEFAULTS.nudgeTicks);
+        break;
+      case 'editor.note.nudgeRight':
+        state.nudgeSelectedNotes(NOTE_OPERATION_DEFAULTS.nudgeTicks);
+        break;
+      case 'editor.note.transposeUp':
+        state.transposeSelectedNotes(NOTE_OPERATION_DEFAULTS.transposeSemitone);
+        break;
+      case 'editor.note.transposeDown':
+        state.transposeSelectedNotes(-NOTE_OPERATION_DEFAULTS.transposeSemitone);
+        break;
+      case 'editor.undo':
+        state.undo();
+        break;
+      case 'editor.redo':
+        state.redo();
+        break;
+      case 'ui.settings.toggle':
+        state.setSettingsOpen(!state.settingsOpen);
+        break;
+      case 'ui.help.toggle':
+        state.setHelpOpen(!state.helpOpen);
+        break;
+      default:
+        break;
+    }
+  }, []);
 
-      const key = e.key.toLowerCase();
-      const midiNote = KEY_MAP[key];
-      if (midiNote === undefined) return;
-      if (voiceMapRef.current.has(key)) return;
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (!isReady) return;
+      if (event.repeat) return;
 
       const state = useDAWStore.getState();
-      const track = state.song.tracks.find((t) => t.id === state.selectedTrackId);
+      const command = resolveShortcutCommand(state.settings.shortcutConfig.bindings, event);
+      const editable = isEditableTarget(event.target);
+
+      if (command) {
+        if (!editable || command.startsWith('transport.') || command.startsWith('ui.')) {
+          event.preventDefault();
+          executeShortcutCommand(command);
+          return;
+        }
+      }
+
+      if (editable) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const midiNote = KEY_MAP[event.code];
+      if (midiNote === undefined) return;
+      if (voiceMapRef.current.has(event.code)) return;
+
+      const track = state.song.tracks.find((item) => item.id === state.selectedTrackId);
       if (!track) return;
 
-      const voiceId = playNote(track.channel, midiNote, 100, track.instrumentId);
+      const voiceId = playTrackNote(track, midiNote, 100);
       if (voiceId !== -1) {
-        voiceMapRef.current.set(key, voiceId);
+        voiceMapRef.current.set(event.code, voiceId);
       }
 
       if (state.transportState === 'recording') {
-        recordStartTickRef.current.set(key, { midiNote, tick: scheduler.getCurrentTick() });
+        recordStartTickRef.current.set(event.code, {
+          midiNote,
+          tick: scheduler.getCurrentTick(),
+        });
       }
     },
-    [isReady, playNote]
+    [executeShortcutCommand, isReady, playTrackNote]
   );
 
   const handleKeyUp = useCallback(
-    (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
-      const voiceId = voiceMapRef.current.get(key);
+    (event: KeyboardEvent) => {
+      const voiceId = voiceMapRef.current.get(event.code);
       if (voiceId !== undefined) {
         stopNote(voiceId);
-        voiceMapRef.current.delete(key);
+        voiceMapRef.current.delete(event.code);
       }
 
-      const recordEntry = recordStartTickRef.current.get(key);
-      if (recordEntry) {
-        recordStartTickRef.current.delete(key);
-        const state = useDAWStore.getState();
-        if (state.transportState === 'recording') {
-          const endTick = scheduler.getCurrentTick();
-          const durationTicks = Math.max(1, endTick - recordEntry.tick);
-          state.addNote(state.selectedTrackId, {
-            midiNote: recordEntry.midiNote,
-            startTick: recordEntry.tick,
-            durationTicks,
-            velocity: 100,
-          });
-        }
-      }
+      const recordEntry = recordStartTickRef.current.get(event.code);
+      if (!recordEntry) return;
+
+      recordStartTickRef.current.delete(event.code);
+      const state = useDAWStore.getState();
+      if (state.transportState !== 'recording') return;
+
+      const endTick = scheduler.getCurrentTick();
+      const durationTicks = Math.max(1, endTick - recordEntry.tick);
+      state.addNote(state.selectedTrackId, {
+        midiNote: recordEntry.midiNote,
+        startTick: recordEntry.tick,
+        durationTicks,
+        velocity: 100,
+      });
     },
     [stopNote]
   );
 
+  const stopAllHeldNotes = useCallback(() => {
+    const state = useDAWStore.getState();
+    const track = state.song.tracks.find((item) => item.id === state.selectedTrackId);
+    if (track) stopChannel(track.channel);
+    voiceMapRef.current.clear();
+    recordStartTickRef.current.clear();
+  }, [stopChannel]);
+
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', stopAllHeldNotes);
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', stopAllHeldNotes);
     };
-  }, [handleKeyDown, handleKeyUp]);
+  }, [handleKeyDown, handleKeyUp, stopAllHeldNotes]);
 }

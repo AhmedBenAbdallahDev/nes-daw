@@ -1,232 +1,153 @@
-# midi.ashref.tn
+# NES DAW Extended Suite
 
-A browser-based Digital Audio Workstation (DAW) for creating authentic NES (Nintendo Entertainment System) music with Mega Man-style sounds. Play, compose, and record chiptune music directly in your browser using Web Audio API synthesis.
+Browser-based DAW for NES-inspired music with two production modes:
+- **Strict NES**: pulse1/pulse2/triangle/noise/dpcm constraints.
+- **Modern**: extra synth engines and flexible tracks.
 
-Live at **[midi.ashref.tn](https://midi.ashref.tn)**
+Built with Next.js + React + TypeScript + Zustand + Web Audio API.
 
-![midi.ashref.tn](https://img.shields.io/badge/midi.ashref.tn-NES%20DAW-ff4a4a)
-![Next.js](https://img.shields.io/badge/Next.js-16-black)
-![React](https://img.shields.io/badge/React-19-61DAFB)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6)
+## Current Feature Set
 
-## Features
+### Audio & Transport
+- Unified transport command bus (`play/pause/stop/record/seek`)
+- Stable scheduler sync across UI, shortcuts, and playback state
+- NES channels + DPCM-like channel path + modern synth engines
+- Looping, quantize, BPM control, arrangement-aware playback
 
-### Audio Engine
-- **Authentic NES Sound Chip Emulation**: 4-channel synthesis (Pulse 1, Pulse 2, Triangle, Noise)
-- **Periodic Wave Synthesis**: Custom-generated duty cycle waves (12.5%, 25%, 50%, 75%) using Fourier series
-- **Web Audio API**: Real-time low-latency synthesis, no samples or external dependencies
-- **Mega Man-Inspired Instruments**: 12 presets including lead, echo, bass, arpeggios, kick, snare, hi-hat, and cymbal
+### Composition
+- Piano roll editing: add/move/resize/delete notes
+- Pattern arrangement sequencer with section markers
+- Track management: mute/solo/volume, engine/instrument selection
+- Editor quick tools: duplicate, quantize selected, nudge, transpose
 
-### Composition Tools
-- **Piano Roll Editor**: Canvas-based timeline with dark theme and channel color coding
-- **Note Editing**: Click to add, right-click to remove, drag to move, drag edge to resize
-- **Multi-Track View**: Ghost notes from other tracks at 30% opacity for context
-- **Transport Controls**: Play, Stop, Record, Pause with BPM control (30-300)
-- **Looping**: Enable/disable loop regions for continuous playback
-- **Quantization**: 1/4, 1/8, 1/16, 1/32 note grid snapping
+### Input
+- Computer keyboard performance mode
+- Web MIDI device input with record capture
+- MIDI controller mapping with learn/detect flow (CC, pitch bend, aftertouch, transport realtime)
+- Routing modes: Selected Track / Omni / Channel Map (1-16 manual routing)
+- Per-device profile bindings + project-level MIDI binding overrides
+- Virtual keyboard
+- Customizable shortcut map with conflict detection and persistence
 
-### Input Methods
-- **MIDI Keyboard Support**: Web MIDI API integration with hot-plug detection
-- **Computer Keyboard**: Z-M row (C3-B3) and Q-P row (C4-E5) piano mapping
-- **Virtual Piano Keyboard**: 4-octave clickable keyboard at the bottom of the screen
-- **Mouse**: Full piano roll interaction with click, drag, and resize
+### Import / Export / Persistence
+- Advanced MIDI file import wizard (track mapping, transpose, quantize, clamp, velocity scale)
+- MIDI export
+- WAV offline bounce
+- Project JSON save/load with schema migration support
+- Auto-draft persistence in local storage with restore prompt
+- Bundled test song loader for Mega Man 2/3/4 templates via local MIDI pack
 
-### Recording
-- **Real-time Recording**: Capture MIDI/keyboard input to the active pattern
-- **Tick-Accurate Timing**: Records at current scheduler position with quantized start times
-- **Multi-Track**: Record to any of the 4 NES channels independently
+### Bundled Mega Man Test MIDI Pack
+
+To bundle and load the three test songs, add authorized MIDI files to:
+
+- `public/midi/megaman/mega-man-2.mid`
+- `public/midi/megaman/mega-man-3.mid`
+- `public/midi/megaman/mega-man-4-title.mid`
+
+Then use the **Test Songs** button in the transport or startup screen.
+
+### UX & Accessibility
+- Settings panel with tabs (Audio, Constraints, Channels, MIDI, Shortcuts, UI, Accessibility)
+- Help dialog and shortcut cheat-sheet
+- Toast feedback + error boundary
+- Desktop/tablet responsive layout + companion banner on narrow screens
+- Reduced-motion and high-contrast focus toggles
+
+## Keyboard Shortcuts (Defaults)
+
+- `Space`: Play/Pause
+- `Shift+Space`: Stop
+- `Shift+R`: Record
+- `Shift+L`: Loop toggle
+- `Shift+Q`: Quantize grid cycle
+- `Delete`: Delete selected notes
+- `Ctrl+D`: Duplicate selected notes
+- `Alt+ArrowLeft/Right`: Nudge selected notes
+- `Alt+ArrowUp/Down`: Transpose selected notes
+- `Ctrl+Z`: Undo
+- `Ctrl+Shift+Z`: Redo
+- `,`: Toggle settings
+- `/`: Toggle help
 
 ## Tech Stack
 
-- **Framework**: Next.js 16 (App Router)
-- **Language**: TypeScript 5
-- **UI**: React 19 + Tailwind CSS 4
-- **State**: Zustand 5
-- **Audio**: Web Audio API (no external libraries)
-- **MIDI**: Web MIDI API
-
-## Getting Started
-
-### Prerequisites
-- Node.js 18+ or Bun
-- A modern browser with Web Audio and Web MIDI support (Chrome, Edge, Firefox)
-
-### Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/Ashref-dev/midi.ashref.tn.git
-cd midi.ashref.tn
-
-# Install dependencies
-bun install
-# or
-npm install
-
-# Run development server
-bun run dev
-# or
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### Usage
-
-1. **Start Audio**: Click the landing screen to initialize the AudioContext
-2. **Select a Track**: Click a track in the left panel (Pulse 1, Pulse 2, Triangle, Noise)
-3. **Play Notes**:
-   - Use your MIDI keyboard
-   - Use computer keyboard (Z-M for lower octave, Q-P for upper)
-   - Click the virtual piano keys at the bottom
-4. **Record**: Click the Record button (red circle) and play notes
-5. **Edit**: Click in the piano roll to add notes, right-click to remove, drag to move
-6. **Playback**: Click Play to hear your composition
-
-## Architecture
-
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── page.tsx           # Main DAW layout
-│   ├── layout.tsx         # Root layout with dark theme
-│   └── globals.css        # Global styles
-├── audio/                  # Audio engine (singleton pattern)
-│   ├── nes-engine.ts      # Core NES synthesis engine
-│   ├── scheduler.ts       # Transport scheduler (look-ahead pattern)
-│   ├── midi-manager.ts    # Web MIDI API wrapper
-│   ├── instruments.ts     # Mega Man-style instrument presets
-│   └── pulse-waves.ts     # Periodic wave generation
-├── components/             # React components
-│   ├── piano-roll/        # Canvas-based piano roll
-│   ├── tracks/            # Track panel sidebar
-│   ├── transport/         # Transport controls bar
-│   └── instruments/       # Virtual keyboard
-├── hooks/                  # Custom React hooks
-│   ├── use-nes-engine.ts  # Engine initialization
-│   ├── use-scheduler.ts   # Transport control
-│   ├── use-midi.ts        # MIDI input handling
-│   └── use-keyboard.ts    # Computer keyboard input
-├── store/                  # Zustand state management
-│   └── daw-store.ts       # Global DAW state
-└── types/                  # TypeScript definitions
-    └── engine.ts          # Core types (Note, Track, Channel, etc.)
-```
-
-## Audio Engine Details
-
-### NES Channel Specifications
-
-| Channel | Waveform | Frequency Range | Use Case |
-|---------|----------|-----------------|----------|
-| Pulse 1 | Square (12.5%, 25%, 50%, 75%) | Full MIDI | Melody, lead |
-| Pulse 2 | Square (12.5%, 25%, 50%, 75%) | Full MIDI | Echo, harmony |
-| Triangle | Triangle wave | Full MIDI | Bass, low-end |
-| Noise | Pseudorandom noise | Limited | Drums, percussion |
-
-### Synthesis Approach
-- **Pulse Waves**: Generated via `createPeriodicWave()` with Fourier coefficients for authentic NES duty cycles
-- **Triangle**: Native Web Audio `triangle` oscillator type
-- **Noise**: Bandpass-filtered buffer source with pseudorandom samples
-- **Envelope**: ADSR-style with instant attack, configurable decay/sustain/release
-
-### Instruments
-
-| ID | Name | Channel | Characteristics |
-|----|------|---------|----------------|
-| mm-lead | MM Lead (Chirp) | Pulse 1 | 25% duty, medium decay, iconic Mega Man chirp |
-| mm-echo | MM Echo | Pulse 2 | 25% duty, longer decay, quieter echo |
-| pulse-50 | Square 50% | Pulse 1 | Full square, sustained |
-| mm-arp | MM Arpeggio | Pulse 1 | Major chord arpeggio pattern |
-| mm-bass | MM Bass | Triangle | Short gated triangle for punchy bass |
-| triangle-sustain | Triangle Sustain | Triangle | Long sustained bass |
-| mm-kick | MM Kick | Noise | Fast decay, low frequency |
-| mm-snare | MM Snare | Noise | Medium decay |
-| mm-hihat | MM Hi-Hat | Noise | Short mode, very fast decay |
-| mm-cymbal | MM Cymbal | Noise | Short mode, longer decay |
-
-## Keyboard Shortcuts
-
-### Computer Keyboard
-| Key | Note |
-|-----|------|
-| Z | C3 |
-| S | C#3 |
-| X | D3 |
-| D | D#3 |
-| C | E3 |
-| V | F3 |
-| G | F#3 |
-| B | G3 |
-| H | G#3 |
-| N | A3 |
-| J | A#3 |
-| M | B3 |
-| Q | C4 |
-| 2 | C#4 |
-| W | D4 |
-| ... | ... |
-| P | E5 |
-
-### Piano Roll
-- **Mouse Wheel**: Scroll vertical (notes)
-- **Shift + Mouse Wheel**: Scroll horizontal (time)
-- **Left Click**: Add note (empty) / Select note (existing)
-- **Right Click**: Remove note
-- **Drag Note Body**: Move note (quantized)
-- **Drag Right Edge**: Resize note duration
+- Next.js 16 (App Router)
+- React 19
+- TypeScript 5
+- Zustand 5
+- Tailwind CSS 4 (global CSS tokenized design system)
+- @tonejs/midi (MIDI file parse/export)
 
 ## Development
 
-### Project Structure Philosophy
-- **Singleton Pattern**: Audio engine, scheduler, and MIDI manager are singletons
-- **Store-Driven UI**: Zustand store holds all state; canvas reads directly via `getState()`
-- **No Re-renders on Canvas**: Piano roll uses `requestAnimationFrame` loop reading from store
-- **Hooks Bridge**: React hooks connect singletons to components
+### Prerequisites
+- Node.js 18+
+- npm or bun
 
-### Building for Production
+### Install
 
 ```bash
-bun run build
+npm install
 # or
-npm run build
+bun install
 ```
 
-The output will be in `.next/` for deployment to Vercel or other Next.js-compatible platforms.
+### Run
 
-## Browser Compatibility
+```bash
+npm run dev
+# or
+bun run dev
+```
 
-| Feature | Chrome | Edge | Firefox | Safari |
-|---------|--------|------|---------|--------|
-| Web Audio API | ✅ | ✅ | ✅ | ✅ |
-| Web MIDI API | ✅ | ✅ | ✅* | ❌ |
-| Canvas 2D | ✅ | ✅ | ✅ | ✅ |
+### Quality Gates
 
-*Firefox requires enabling Web MIDI in `about:config`
+```bash
+npm run lint
+npm run test
+npm run build
+npm run verify
+```
 
-## Future Enhancements
+`verify` runs lint + tests + production build.
 
-- [ ] Export to NSF (NES Sound Format)
-- [ ] Export to WAV
-- [ ] Pattern sequencing (arrangement view)
-- [ ] Effects (pitch bend, vibrato, duty cycle sweep)
-- [ ] Save/load songs (JSON export/import)
-- [ ] DPCM channel support (sample playback)
-- [ ] Mobile/touch optimization
+## CI
 
-## Credits
+GitHub Actions workflow at `.github/workflows/ci.yml` runs:
+- lint
+- tests
+- build
 
-Created by **[Ashref.Tn](https://ashref.tn)** | [GitHub](https://github.com/Ashref-dev)
+## Project Structure
 
-Inspired by the iconic soundtracks of:
-- Mega Man 1 (1987, Capcom)
-- Mega Man 2 (1988, Capcom)
-- The NES APU (Audio Processing Unit)
+```text
+src/
+  app/                     # app shell + global styles
+  audio/                   # engine, scheduler, transport controller, note scheduling
+  components/
+    arrangement/           # pattern timeline
+    common/                # toasts, error boundary, help dialog
+    editor/                # editor quick actions
+    import/                # MIDI import wizard
+    instruments/           # virtual keyboard
+    piano-roll/            # main note editor
+    settings/              # settings UI
+    tracks/                # track/channel controls
+    transport/             # transport + file operations bar
+  hooks/                   # UI-engine integration hooks
+  lib/                     # constants, shortcut utilities, song utilities
+  services/                # import/export, project IO, draft storage, wav export
+  store/                   # Zustand DAW state/actions
+  types/                   # core contracts
+```
+
+## Browser Notes
+
+- Web Audio API required for playback.
+- Web MIDI API availability varies by browser/platform.
+- When MIDI API is unavailable, app still works with keyboard + mouse input.
 
 ## License
 
-MIT License - feel free to use, modify, and distribute.
-
----
-
-**Built with passion by Ashref.Tn**
+MIT

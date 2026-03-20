@@ -1,207 +1,190 @@
 'use client';
 
-import React from 'react';
+import { getInstrumentsForTrack } from '@/audio/instruments';
 import { useDAWStore } from '@/store/daw-store';
-import { getInstrumentsByChannel } from '@/audio/instruments';
-import type { NESChannel } from '@/types/engine';
+import type { Track } from '@/types/engine';
 
-const CHANNEL_COLORS: Record<NESChannel, string> = {
-  pulse1: '#4a9eff',
-  pulse2: '#4aff8a',
-  triangle: '#ff4a4a',
-  noise: '#b04aff',
-};
+function channelColor(channel: Track['channel']) {
+  switch (channel) {
+    case 'pulse1':
+      return '#3b82f6';
+    case 'pulse2':
+      return '#22c55e';
+    case 'triangle':
+      return '#f97316';
+    case 'noise':
+      return '#a855f7';
+    case 'dpcm':
+      return '#facc15';
+    default:
+      return '#06b6d4';
+  }
+}
 
 export function TrackPanel() {
-  const {
-    song,
-    selectedTrackId,
-    setSelectedTrack,
-    toggleTrackMute,
-    toggleTrackSolo,
-    setTrackVolume,
-    setTrackInstrument,
-  } = useDAWStore();
+  const song = useDAWStore((state) => state.song);
+  const mode = useDAWStore((state) => state.settings.mode);
+  const selectedTrackId = useDAWStore((state) => state.selectedTrackId);
+
+  const setSelectedTrack = useDAWStore((state) => state.setSelectedTrack);
+  const toggleTrackMute = useDAWStore((state) => state.toggleTrackMute);
+  const toggleTrackSolo = useDAWStore((state) => state.toggleTrackSolo);
+  const setTrackVolume = useDAWStore((state) => state.setTrackVolume);
+  const setTrackInstrument = useDAWStore((state) => state.setTrackInstrument);
+  const setTrackEngineType = useDAWStore((state) => state.setTrackEngineType);
+  const setTrackName = useDAWStore((state) => state.setTrackName);
+  const clearTrackNotes = useDAWStore((state) => state.clearTrackNotes);
+  const addModernTrack = useDAWStore((state) => state.addModernTrack);
+  const removeTrack = useDAWStore((state) => state.removeTrack);
 
   return (
-    <div
-      style={{
-        width: '240px',
-        backgroundColor: '#111111',
-        borderRight: '2px solid #222222',
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        overflowY: 'auto',
-        fontFamily: "'Courier New', monospace",
-        color: '#eeeeee',
-      }}
-    >
-      <div
-        style={{
-          padding: '10px',
-          borderBottom: '2px solid #222222',
-          backgroundColor: '#1a1a1a',
-          fontSize: '14px',
-          fontWeight: 'bold',
-          letterSpacing: '1px',
-          textTransform: 'uppercase',
-          textAlign: 'center',
-        }}
-      >
-        NES Channels
+    <aside className="track-panel" aria-label="Track and channel controls">
+      <div className="track-header">
+        <h2>Channels</h2>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={addModernTrack}
+          disabled={mode !== 'modern'}
+          title={mode === 'modern' ? 'Add modern track' : 'Switch to Modern mode to add tracks'}
+        >
+          + Track
+        </button>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', padding: '4px' }}>
+      <div className="track-list">
         {song.tracks.map((track) => {
           const isSelected = selectedTrackId === track.id;
-          const channelColor = CHANNEL_COLORS[track.channel];
-          const instruments = getInstrumentsByChannel(track.channel);
+          const instruments = getInstrumentsForTrack(track);
+          const color = channelColor(track.channel);
 
           return (
-            <div
+            <article
               key={track.id}
+              className={`track-card ${isSelected ? 'is-selected' : ''}`}
+              style={{ '--track-color': color } as React.CSSProperties}
               onClick={() => setSelectedTrack(track.id)}
-              style={{
-                marginBottom: '4px',
-                padding: '8px',
-                backgroundColor: isSelected ? '#1a1a1a' : '#151515',
-                border: `2px solid ${isSelected ? channelColor : '#222222'}`,
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-                position: 'relative',
-                opacity: track.muted ? 0.4 : 1,
-                filter: track.muted ? 'grayscale(100%)' : 'none',
-              }}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    color: isSelected ? '#ffffff' : '#aaaaaa',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  {track.name}
-                </span>
-                <div
-                  style={{
-                    width: '8px',
-                    height: '8px',
-                    backgroundColor: channelColor,
-                    boxShadow: isSelected ? `0 0 4px ${channelColor}` : 'none',
-                  }}
+              <div className="track-top">
+                <input
+                  className="input track-name-input"
+                  value={track.name}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => setTrackName(track.id, event.target.value)}
+                  aria-label={`${track.channel} track name`}
                 />
+                <div className="track-chip">{track.channel}</div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="track-controls">
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  type="button"
+                  className={`btn-icon tiny ${track.muted ? 'is-active' : ''}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
                     toggleTrackMute(track.id);
-                  }}
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    backgroundColor: track.muted ? '#ff4a4a' : '#222222',
-                    border: '1px solid #444444',
-                    color: track.muted ? '#000000' : '#888888',
-                    fontSize: '10px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 0,
                   }}
                   title="Mute"
                 >
                   M
                 </button>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  type="button"
+                  className={`btn-icon tiny ${track.solo ? 'is-active' : ''}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
                     toggleTrackSolo(track.id);
-                  }}
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    backgroundColor: track.solo ? '#ffe600' : '#222222',
-                    border: '1px solid #444444',
-                    color: track.solo ? '#000000' : '#888888',
-                    fontSize: '10px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: 0,
                   }}
                   title="Solo"
                 >
                   S
                 </button>
-                
+
                 <input
                   type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
+                  min={0}
+                  max={1}
+                  step={0.01}
                   value={track.volume}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    setTrackVolume(track.id, parseFloat(e.target.value));
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => {
+                    event.stopPropagation();
+                    setTrackVolume(track.id, parseFloat(event.target.value));
                   }}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{
-                    flex: 1,
-                    height: '4px',
-                    accentColor: channelColor,
-                    cursor: 'pointer',
-                    outline: 'none',
-                  }}
-                  title={`Volume: ${Math.round(track.volume * 100)}%`}
                 />
               </div>
 
-              <select
-                value={track.instrumentId}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  setTrackInstrument(track.id, e.target.value);
-                }}
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  width: '100%',
-                  backgroundColor: '#0a0a0a',
-                  color: '#cccccc',
-                  border: '1px solid #333333',
-                  padding: '4px',
-                  fontSize: '10px',
-                  fontFamily: "'Courier New', monospace",
-                  cursor: 'pointer',
-                  outline: 'none',
-                }}
-              >
-                {instruments.map((inst) => (
-                  <option key={inst.id} value={inst.id}>
-                    {inst.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <div className="track-controls column">
+                <label className="field-inline">
+                  <span>Engine</span>
+                  <select
+                    value={track.engineType}
+                    disabled={track.channel !== 'modern'}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(event) => setTrackEngineType(track.id, event.target.value as Track['engineType'])}
+                  >
+                    {track.channel === 'modern' ? (
+                      <>
+                        <option value="saw">Saw</option>
+                        <option value="sine">Sine</option>
+                        <option value="fm-lite">FM-lite</option>
+                        <option value="modern-noise">Modern Noise</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value={track.channel === 'dpcm' ? 'dpcm' : 'nes'}>
+                          {track.channel === 'dpcm' ? 'DPCM' : 'NES'}
+                        </option>
+                      </>
+                    )}
+                  </select>
+                </label>
+
+                <label className="field-inline">
+                  <span>Instrument</span>
+                  <select
+                    value={track.instrumentId}
+                    onClick={(event) => event.stopPropagation()}
+                    onChange={(event) => setTrackInstrument(track.id, event.target.value)}
+                  >
+                    {instruments.map((instrument) => (
+                      <option key={instrument.id} value={instrument.id}>
+                        {instrument.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="track-actions">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    clearTrackNotes(track.id);
+                  }}
+                >
+                  Clear Notes
+                </button>
+              </div>
+
+              {mode === 'modern' && track.channel === 'modern' && (
+                <button
+                  type="button"
+                  className="btn btn-ghost danger"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    removeTrack(track.id);
+                  }}
+                >
+                  Remove
+                </button>
+              )}
+            </article>
           );
         })}
       </div>
-    </div>
+    </aside>
   );
 }

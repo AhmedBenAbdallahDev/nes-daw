@@ -1,240 +1,287 @@
 'use client';
 
-import React from 'react';
+import { useRef } from 'react';
+import { APP_VERSION } from '@/lib/constants';
 import { useDAWStore } from '@/store/daw-store';
-import type { Quantize } from '@/types/engine';
+import type { PlaybackPreviewMode, Quantize } from '@/types/engine';
 
 const QUANTIZE_OPTIONS: Quantize[] = ['1/4', '1/8', '1/16', '1/32'];
+const PREVIEW_OPTIONS: PlaybackPreviewMode[] = ['full-song', 'intro-to-loop', 'loop-only'];
 
 interface TransportBarProps {
-  onPlay?: () => void;
-  onStop?: () => void;
-  onRecord?: () => void;
+  onPlay: () => void;
+  onPause: () => void;
+  onStop: () => void;
+  onRecord: () => void;
+  onNewProject: () => void;
+  onOpenMidiImport: () => void;
+  onLoadTestSong: () => void;
+  onSaveProject: () => void;
+  onLoadProject: (file: File) => void;
+  onExportMidi: () => void;
+  onExportWav: () => void;
+  onExportReport: () => void;
+  onToggleSettings: () => void;
+  onOpenHelp: () => void;
+  exportingWav?: boolean;
 }
 
-export function TransportBar({ onPlay, onStop, onRecord }: TransportBarProps) {
-  const song = useDAWStore((s) => s.song);
-  const transportState = useDAWStore((s) => s.transportState);
-  const currentTick = useDAWStore((s) => s.currentTick);
-  const bpm = useDAWStore((s) => s.bpm);
-  const loopEnabled = useDAWStore((s) => s.loopEnabled);
-  const midiConnected = useDAWStore((s) => s.midiConnected);
-  const midiDeviceName = useDAWStore((s) => s.midiDeviceName);
-  const quantize = useDAWStore((s) => s.pianoRollView.quantize);
+export function TransportBar({
+  onPlay,
+  onPause,
+  onStop,
+  onRecord,
+  onNewProject,
+  onOpenMidiImport,
+  onLoadTestSong,
+  onSaveProject,
+  onLoadProject,
+  onExportMidi,
+  onExportWav,
+  onExportReport,
+  onToggleSettings,
+  onOpenHelp,
+  exportingWav = false,
+}: TransportBarProps) {
+  const song = useDAWStore((state) => state.song);
+  const transportState = useDAWStore((state) => state.transportState);
+  const currentTick = useDAWStore((state) => state.currentTick);
+  const bpm = useDAWStore((state) => state.bpm);
+  const loopEnabled = useDAWStore((state) => state.loopEnabled);
+  const midiConnected = useDAWStore((state) => state.midiConnected);
+  const midiDeviceName = useDAWStore((state) => state.midiDeviceName);
+  const quantize = useDAWStore((state) => state.pianoRollView.quantize);
+  const playbackPreviewMode = useDAWStore((state) => state.playbackPreviewMode);
+  const settings = useDAWStore((state) => state.settings);
 
-  const storePlay = useDAWStore((s) => s.play);
-  const storeStop = useDAWStore((s) => s.stop);
-  const storeToggleRecord = useDAWStore((s) => s.toggleRecord);
-  const setBpm = useDAWStore((s) => s.setBpm);
-  const toggleLoop = useDAWStore((s) => s.toggleLoop);
-  const setQuantize = useDAWStore((s) => s.setQuantize);
-  const setSongName = useDAWStore((s) => s.setSongName);
+  const setBpm = useDAWStore((state) => state.setBpm);
+  const setQuantize = useDAWStore((state) => state.setQuantize);
+  const setSongName = useDAWStore((state) => state.setSongName);
+  const toggleLoop = useDAWStore((state) => state.toggleLoop);
+  const setPlaybackPreviewMode = useDAWStore((state) => state.setPlaybackPreviewMode);
+  const applyLoopRegionFromMarkers = useDAWStore((state) => state.applyLoopRegionFromMarkers);
+  const jumpToMarker = useDAWStore((state) => state.jumpToMarker);
+  const updateUISettings = useDAWStore((state) => state.updateUISettings);
 
-  const handlePlay = () => {
-    if (onPlay) {
-      onPlay();
-    }
-    storePlay();
-  };
-
-  const handleStop = () => {
-    if (onStop) {
-      onStop();
-    }
-    storeStop();
-  };
-
-  const handleRecord = () => {
-    if (onRecord) {
-      onRecord();
-    }
-    storeToggleRecord();
-  };
+  const loadInputRef = useRef<HTMLInputElement>(null);
 
   const ppqn = song.ppqn;
   const bar = Math.floor(currentTick / (ppqn * 4)) + 1;
   const beat = Math.floor((currentTick % (ppqn * 4)) / ppqn) + 1;
   const tick = currentTick % ppqn;
 
-  const posStr = `${bar}:${String(beat).padStart(2, '0')}:${String(tick).padStart(2, '0')}`;
-
   const isPlaying = transportState === 'playing';
   const isRecording = transportState === 'recording';
-
-  const base: React.CSSProperties = {
-    height: '48px',
-    backgroundColor: '#0d0d0d',
-    borderBottom: '1px solid #222',
-    display: 'flex',
-    alignItems: 'center',
-    padding: '0 12px',
-    gap: '12px',
-    fontFamily: "'Courier New', monospace",
-    fontSize: '12px',
-    color: '#aaa',
-    width: '100%',
-    flexShrink: 0,
-  };
-
-  const btnBase: React.CSSProperties = {
-    border: '1px solid #333',
-    backgroundColor: '#1a1a1a',
-    color: '#888',
-    cursor: 'pointer',
-    fontFamily: "'Courier New', monospace",
-    fontSize: '10px',
-    fontWeight: 'bold',
-    height: '28px',
-    padding: '0 8px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    letterSpacing: '1px',
-  };
-
-  const inputBase: React.CSSProperties = {
-    backgroundColor: '#111',
-    border: '1px solid #333',
-    color: '#ccc',
-    fontFamily: "'Courier New', monospace",
-    fontSize: '12px',
-    outline: 'none',
-    height: '28px',
-    padding: '0 6px',
-  };
+  const isPaused = transportState === 'paused';
 
   return (
-    <div style={base}>
-      <style>{`
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-        .blink-record {
-          animation: blink 1s ease-in-out infinite;
-        }
-      `}</style>
-      <input
-        type="text"
-        value={song.name}
-        onChange={(e) => setSongName(e.target.value)}
-        style={{ ...inputBase, width: '120px' }}
-      />
-
-      <div style={{ flex: 1 }} />
-
-      <div style={{ display: 'flex', gap: '4px' }}>
-        <button onClick={handleStop} style={btnBase} title="Stop (Space)">
-          <svg width="10" height="10" viewBox="0 0 10 10">
-            <rect x="1" y="1" width="8" height="8" fill="#ccc" />
-          </svg>
-        </button>
-        <button
-          onClick={handlePlay}
-          style={{
-            ...btnBase,
-            backgroundColor: isPlaying ? '#0a2a0a' : '#1a1a1a',
-            borderColor: isPlaying ? '#00ff00' : '#333',
-            boxShadow: isPlaying ? '0 0 6px #00ff0044' : 'none',
-          }}
-          title="Play (Space)"
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10">
-            <polygon points="1,0 10,5 1,10" fill={isPlaying ? '#00ff00' : '#ccc'} />
-          </svg>
-        </button>
-        <button
-          onClick={handleRecord}
-          className={isRecording ? 'blink-record' : ''}
-          style={{
-            ...btnBase,
-            backgroundColor: isRecording ? '#2a0a0a' : '#1a1a1a',
-            borderColor: isRecording ? '#ff0000' : '#333',
-            boxShadow: isRecording ? '0 0 10px #ff0000' : 'none',
-          }}
-          title="Record"
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10">
-            <circle cx="5" cy="5" r="4" fill={isRecording ? '#ff0000' : '#ccc'} />
-          </svg>
-        </button>
-      </div>
-
-      <div style={{ flex: 1 }} />
-
-      <div
-        style={{
-          backgroundColor: '#0a0a0a',
-          border: '1px solid #222',
-          padding: '4px 10px',
-          fontFamily: "'Courier New', monospace",
-          fontSize: '16px',
-          fontWeight: 'bold',
-          color: '#00ff00',
-          letterSpacing: '2px',
-          minWidth: '130px',
-          textAlign: 'center',
-        }}
-      >
-        {posStr}
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <span style={{ fontSize: '10px', color: '#666' }}>BPM</span>
+    <header className="transport-shell">
+      <div className="transport-row">
         <input
-          type="number"
-          min={30}
-          max={300}
-          value={bpm}
-          onChange={(e) => setBpm(Number(e.target.value))}
-          style={{ ...inputBase, width: '50px', textAlign: 'center' }}
+          className="input title-input"
+          value={song.name}
+          onChange={(event) => setSongName(event.target.value)}
+          aria-label="Song name"
         />
+
+        <div className="badge-row">
+          <span className={`badge badge-mode ${settings.mode === 'strict' ? 'strict' : 'modern'}`}>
+            {settings.mode.toUpperCase()}
+          </span>
+          <span className={`badge ${midiConnected ? 'online' : 'offline'}`}>
+            {midiConnected ? midiDeviceName ?? 'MIDI Connected' : 'No MIDI'}
+          </span>
+          <span className="badge">{isPaused ? 'Paused' : transportState}</span>
+        </div>
+
+        <div className="transport-controls">
+          <button
+            type="button"
+            className="btn-icon"
+            onClick={onStop}
+            title="Stop (Shift+Space)"
+            aria-label="Stop playback"
+          >
+            []
+          </button>
+          <button
+            type="button"
+            className={`btn-icon ${isPlaying ? 'is-active' : ''}`}
+            onClick={isPlaying ? onPause : onPlay}
+            title="Play / Pause (Space)"
+            aria-label="Play or pause playback"
+          >
+            {isPlaying ? '||' : '>'}
+          </button>
+          <button
+            type="button"
+            className={`btn-icon ${isRecording ? 'is-active rec' : ''}`}
+            onClick={onRecord}
+            title="Record (Shift+R)"
+            aria-label="Toggle record mode"
+          >
+            O
+          </button>
+        </div>
+
+        <div className="clock" aria-label="Transport position">
+          {bar}:{String(beat).padStart(2, '0')}:{String(tick).padStart(2, '0')}
+        </div>
+
+        <label className="field-inline transport-small">
+          <span>BPM</span>
+          <input
+            className="input"
+            type="number"
+            min={30}
+            max={300}
+            value={bpm}
+            onChange={(event) => setBpm(Number(event.target.value))}
+          />
+        </label>
+
+        <label className="field-inline transport-small">
+          <span>Q</span>
+          <select className="input" value={quantize} onChange={(event) => setQuantize(event.target.value as Quantize)}>
+            {QUANTIZE_OPTIONS.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <button
+          type="button"
+          className={`btn btn-loop ${loopEnabled ? 'is-active' : ''}`}
+          onClick={toggleLoop}
+          title="Toggle loop"
+        >
+          LOOP
+        </button>
+
+        <div className="transport-hints" aria-label="Quick shortcut hints">
+          <span>Space: Play/Pause</span>
+          <span>Shift+Space: Stop</span>
+          <span>Shift+R: Record</span>
+          <span>/: Help</span>
+        </div>
       </div>
 
-      <button
-        onClick={toggleLoop}
-        style={{
-          ...btnBase,
-          backgroundColor: loopEnabled ? '#1a1a00' : '#1a1a1a',
-          borderColor: loopEnabled ? '#ffe600' : '#333',
-          color: loopEnabled ? '#ffe600' : '#666',
-        }}
-      >
-        LOOP
-      </button>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <span style={{ fontSize: '10px', color: '#666' }}>Q</span>
-        <select
-          value={quantize}
-          onChange={(e) => setQuantize(e.target.value as Quantize)}
-          style={{
-            ...inputBase,
-            width: '55px',
-            cursor: 'pointer',
+      <div className="transport-row secondary">
+        <button type="button" className="btn" onClick={onNewProject}>
+          New Project
+        </button>
+        <button type="button" className="btn" onClick={onOpenMidiImport}>
+          Import MIDI
+        </button>
+        <button type="button" className="btn" onClick={onLoadTestSong}>
+          Test Songs
+        </button>
+        <button type="button" className="btn" onClick={onSaveProject}>
+          Save Project
+        </button>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            loadInputRef.current?.click();
           }}
         >
-          {QUANTIZE_OPTIONS.map((q) => (
-            <option key={q} value={q}>
-              {q}
-            </option>
-          ))}
-        </select>
-      </div>
+          Load Project
+        </button>
+        <button type="button" className="btn" onClick={onExportMidi} disabled={exportingWav}>
+          Export MIDI
+        </button>
+        <button type="button" className="btn" onClick={onExportWav} disabled={exportingWav}>
+          {exportingWav ? 'Rendering WAV...' : 'Export WAV'}
+        </button>
+        <button type="button" className="btn" onClick={onExportReport}>
+          Export Report
+        </button>
+        <label className="field-inline transport-small">
+          <span>Preview</span>
+          <select
+            className="input"
+            value={playbackPreviewMode}
+            onChange={(event) => setPlaybackPreviewMode(event.target.value as PlaybackPreviewMode)}
+          >
+            {PREVIEW_OPTIONS.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => {
+            applyLoopRegionFromMarkers();
+          }}
+        >
+          Loop From Markers
+        </button>
+        {song.arrangement.sectionMarkers.length > 0 && (
+          <select
+            className="input transport-marker-select"
+            defaultValue=""
+            onChange={(event) => {
+              if (!event.target.value) return;
+              jumpToMarker(event.target.value);
+              event.currentTarget.value = '';
+            }}
+          >
+            <option value="">Jump to Marker</option>
+            {song.arrangement.sectionMarkers.map((marker) => (
+              <option key={marker.id} value={marker.id}>
+                {marker.label} ({marker.role ?? 'custom'})
+              </option>
+            ))}
+          </select>
+        )}
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() =>
+            updateUISettings({
+              validationPanelVisible: !settings.uiConfig.validationPanelVisible,
+            })
+          }
+        >
+          {settings.uiConfig.validationPanelVisible ? 'Hide Validation' : 'Show Validation'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() =>
+            updateUISettings({
+              monitorDockVisible: !settings.uiConfig.monitorDockVisible,
+            })
+          }
+        >
+          {settings.uiConfig.monitorDockVisible ? 'Hide Monitor' : 'Show Monitor'}
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={onToggleSettings}>
+          Settings
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={onOpenHelp}>
+          Help
+        </button>
+        <span className="transport-version">v{APP_VERSION}</span>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <div
-          style={{
-            width: '8px',
-            height: '8px',
-            backgroundColor: midiConnected ? '#00ff00' : '#660000',
-            boxShadow: midiConnected ? '0 0 4px #00ff00' : 'none',
+        <input
+          ref={loadInputRef}
+          className="hidden-input"
+          type="file"
+          accept="application/json,.json"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) onLoadProject(file);
+            event.currentTarget.value = '';
           }}
         />
-        <span style={{ fontSize: '10px', color: '#666' }}>
-          {midiConnected ? midiDeviceName ?? 'MIDI' : 'NO MIDI'}
-        </span>
       </div>
-    </div>
+    </header>
   );
 }

@@ -1,6 +1,13 @@
+import { parseMIDIMessage } from '@/services/midi-control-service';
+
 export type MIDINoteCallback = (midiNote: number, velocity: number) => void;
 export type MIDIPitchBendCallback = (value: number) => void;
-export type MIDIConnectionCallback = (connected: boolean, deviceName: string | null) => void;
+export type MIDIConnectionCallback = (
+  connected: boolean,
+  deviceName: string | null,
+  deviceId?: string | null
+) => void;
+export type MIDIEnvelopeCallback = (message: import('@/types/engine').MIDIMessageEnvelope) => void;
 
 class MIDIManager {
   private midiAccess: MIDIAccess | null = null;
@@ -10,6 +17,7 @@ class MIDIManager {
   private onNoteOff: MIDINoteCallback | null = null;
   private onPitchBend: MIDIPitchBendCallback | null = null;
   private onConnectionChange: MIDIConnectionCallback | null = null;
+  private onEnvelope: MIDIEnvelopeCallback | null = null;
   
   async init(): Promise<boolean> {
     if (!navigator.requestMIDIAccess) {
@@ -43,7 +51,7 @@ class MIDIManager {
     }
     this.activeInput = input;
     this.activeInput.onmidimessage = (e) => this.handleMessage(e);
-    this.onConnectionChange?.(true, input.name ?? 'Unknown Device');
+    this.onConnectionChange?.(true, input.name ?? 'Unknown Device', input.id);
   }
   
   private handleStateChange(e: Event): void {
@@ -53,7 +61,7 @@ class MIDIManager {
         this.connectToInput(evt.port as MIDIInput);
       } else if (evt.port.state === 'disconnected' && this.activeInput?.id === evt.port.id) {
         this.activeInput = null;
-        this.onConnectionChange?.(false, null);
+        this.onConnectionChange?.(false, null, null);
         this.connectToFirstInput();
       }
     }
@@ -61,27 +69,31 @@ class MIDIManager {
   
   private handleMessage(event: MIDIMessageEvent): void {
     const data = event.data;
-    if (!data || data.length < 2) return;
+    if (!data || data.length < 1) return;
+
+    const envelope = parseMIDIMessage(data, {
+      timestamp: event.timeStamp,
+      deviceId: this.activeInput?.id ?? null,
+      deviceName: this.activeInput?.name ?? null,
+    });
+    if (!envelope) return;
+    this.onEnvelope?.(envelope);
     
-    const status = data[0];
-    const command = status & 0xf0;
-    const note = data[1];
-    const velocity = data.length > 2 ? data[2] : 0;
-    
-    switch (command) {
-      case 0x90:
-        if (velocity > 0) {
-          this.onNoteOn?.(note, velocity);
-        } else {
-          this.onNoteOff?.(note, 0);
+    switch (envelope.messageType) {
+      case 'note-on':
+        if (envelope.note !== null) {
+          this.onNoteOn?.(envelope.note, envelope.velocity ?? 0);
         }
         break;
-      case 0x80:
-        this.onNoteOff?.(note, velocity);
+      case 'note-off':
+        if (envelope.note !== null) {
+          this.onNoteOff?.(envelope.note, envelope.velocity ?? 0);
+        }
         break;
-      case 0xe0:
-        const bendValue = ((data[2] << 7) | data[1]) - 8192;
-        this.onPitchBend?.(bendValue / 8192);
+      case 'pitch-bend':
+        this.onPitchBend?.(envelope.value / 8192);
+        break;
+      default:
         break;
     }
   }
@@ -90,6 +102,7 @@ class MIDIManager {
   setNoteOffCallback(cb: MIDINoteCallback): void { this.onNoteOff = cb; }
   setPitchBendCallback(cb: MIDIPitchBendCallback): void { this.onPitchBend = cb; }
   setConnectionCallback(cb: MIDIConnectionCallback): void { this.onConnectionChange = cb; }
+  setEnvelopeCallback(cb: MIDIEnvelopeCallback): void { this.onEnvelope = cb; }
   
   getInputs(): MIDIInput[] {
     if (!this.midiAccess) return [];
@@ -104,6 +117,7 @@ class MIDIManager {
   
   isConnected(): boolean { return this.activeInput !== null; }
   getDeviceName(): string | null { return this.activeInput?.name ?? null; }
+  getDeviceId(): string | null { return this.activeInput?.id ?? null; }
   
   dispose(): void {
     if (this.activeInput) {
