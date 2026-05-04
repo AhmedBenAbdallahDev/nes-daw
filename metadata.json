@@ -1,0 +1,6 @@
+{
+  "name": "Retrolia: Melancholic DAW",
+  "description": "A retro pixel-art styled music generator and DAW. Write music in a timeline or use AI to generate melancholic tracks and full songs. Supports MIDI import and export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
